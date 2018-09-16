@@ -1,1 +1,5 @@
 google-cloud-texttospeech==0.2.0
+google-cloud-speech
+numpy
+myo-python
+pyaudio
