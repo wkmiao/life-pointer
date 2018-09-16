@@ -25,6 +25,7 @@ Created on Fri Sep 14 01:16:59 2018
 # In[1]:
 
 #from finger detection 
+#from __future__ import print_function
 from collections import deque
 import numpy as np
 import argparse
@@ -49,6 +50,32 @@ from collections import defaultdict
 from io import StringIO
 from matplotlib import pyplot as plt
 from PIL import Image
+
+
+
+import myo as libmyo; libmyo.init("/Users/andywang/htn-pointy-thing/sdk/myo.framework/myo")
+
+
+class Listener(libmyo.DeviceListener):
+  def on_connected(self, event):
+    print("Hello, '{}'! Double tap to exit.".format(event.device_name))
+    event.device.vibrate(libmyo.VibrationType.short)
+    event.device.request_battery_level()
+
+  def on_battery_level(self, event):
+    print("Your battery level is:", event.battery_level)
+
+  def on_pose(self, event):
+    if event.pose == libmyo.Pose.wave_in:
+      print ("left")
+      return True
+    elif event.pose == libmyo.Pose.wave_out:
+      print ("right")
+      return True
+  
+    elif event.pose == libmyo.Pose.double_tap:
+      return False
+
 
 # This is needed since the notebook is stored in the object_detection folder.
 sys.path.append("..")
@@ -146,11 +173,11 @@ category_index = label_map_util.create_category_index(categories)
 # ball in the HSV color space, then initialize the
 # list of tracked points
 
-#logictech web
+#logictech webcam
 greenLower = (45, 54, 63)
 greenUpper = (80, 255, 255)
 
-#mac web 
+#mac webcam
 #greenLower = (29, 86, 6)
 #greenUpper = (64, 255, 255)
 
@@ -180,7 +207,10 @@ print("Start")
 # Running the tensorflow session
 with detection_graph.as_default():
   with tf.Session(graph=detection_graph) as sess:
+   hub = libmyo.Hub()
+   myo_listener = Listener()
    ret = True
+   x=0
    while (ret):
       #grab the current frame - finger detection 
       #(grabbed, frame) = camera.read() 
@@ -257,20 +287,30 @@ with detection_graph.as_default():
               # update the points queue
               #pts.appendleft(center)
           if cv2.waitKey(25) & 0xFF == ord('q'):
+              x = 1
               #print ([category_index.get(value) for index,value in enumerate(classes[0]) if scores[0,index] > 0.5])
               #print([category_index.get(i) for i in classes[0]])
               #print(type(boxes))
               #print(type(classes))  
               #width, height = image_np.size
+          if x < 20 and x > 0: 
               print("Width:")
+              frameWidth = cap.get(3)
               print(cap.get(3))
               print("height:")
+              frameHeight = cap.get(4)
               print(cap.get(4))
               print(center)
               for index,value in enumerate(classes[0]) :
                   if scores[0,index] > 0.5:
                       print ([category_index.get(value)['name'],boxes[0,index]])
                       #print(scores)
+              x=x+1
+          else:  
+              x = 0   
+      hub.run_once(myo_listener.on_event, 50)
+        
+        
       
       cv2.imshow('image',image_np)
       #cv2.imshow('image',cv2.resize(image_np,(1280,960)))
