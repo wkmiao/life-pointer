@@ -34,7 +34,6 @@ import cv2
 import time
 import pandas as pd
 import matplotlib.pyplot as plt
-
 from distutils.version import StrictVersion
 import numpy as np
 import os
@@ -62,122 +61,8 @@ parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 
 import synthesize_text
-
-
-DETECT_OBJECT_FLAG = False
-LOOK_FOR_OBJECT_FLAG = False
-
-class Listener(libmyo.DeviceListener):
-  def on_connected(self, event):
-    print("Hello, '{}'! Double tap to exit.".format(event.device_name))
-    event.device.vibrate(libmyo.VibrationType.short)
-    event.device.request_battery_level()
-
-  def on_battery_level(self, event):
-    print("Your battery level is:", event.battery_level)
-
-
-  def on_pose(self, event):
-    if event.pose == libmyo.Pose.wave_in:
-      global leftObject 
-      print("Object on the left: " , end=" ")  
-      for i in leftObject :
-          print(i, end=" ")
-      total_text = ". ".join(str(item) for item in leftObject) 
-      return True
-    elif event.pose == libmyo.Pose.wave_out:
-      global rightObject  
-      print("Object on the right: " , end=" ")   
-      for i in rightObject :
-          print(i, end=" ")
-      total_text = ". ".join(str(item) for item in rightObject) 
-      text2speech(total_text)
-      return True
-    elif event.pose == libmyo.Pose.fingers_spread:
-      # where is ___ (start microphone)
-      LOOK_FOR_OBJECT_FLAG = True
-    elif event.pose == libmyo.Pose.double_tap:
-      # what-is-this equivalent 
-      DETECT_OBJECT_FLAG = True
-    elif event.pose == libmyo.Pose.fist:
-      #closed fist to stop
-      return False
-
-
-def text2speech(text):
-    print(text)
-    synthesize_text.synthesize_text(text)
-    mixer.music.load("/Users/andywang/htn-pointy-thing/output.mp3")
-    mixer.music.play()
-    
-def computePointedObject(objects, fingerPos):
-	'''to be checked outside:
-	if whatisthis and fingerPos:
-	'''
-	centres = {}
-	box_nums = []
-	diags = {}
-	limit = len(objects)
-
-	unique_i = 0
-
-	# obj = {'key/label', 'val'=[[center1, diag1], [center2, diag2], []... ]}
-	# centres = {'key/label', 'val'=[[unique_center1], [unique_center2], []... ]}
-
-	#iterate through keys/labels
-	for obj in objects:
-		key = obj.key
-		centre = obj[key][0]
-		diag = obj[key][1]
-
-		if not centres:
-			centres[key][0] = centre
-			diags[key][0] = diag
-			box_nums[0] = 1
-			unique_i = 0
-			prev_i = 0
-
-		else:
-			for i, c in centres.items():
-				# if centre within 10% of c val in centres == duplicate el
-				# else greater than 10% == new el
-				if abs(centre - c) < (0.1 * c):
-					#get sum of centres, diagonals
-					centres[key][i] += centre
-					diags[key][i] += diag
-					box_nums[i] += 1
-				elif unique_i < limit:
-					unique_i += 1
-					box_nums[unique_i] = 1
-					centres.append(centre)
-					diags.append(diag)
-				else:
-					break
-
-	#compute average centres
-	for key, boxes in centres.items():
-		for i in range(len(boxes)):
-			#tuple
-			centres[key][i] /= box_nums[i]
-			diags[key][i] /= box_nums[i]
-
-
-	#search for closest
-	x = fingerPos[0]
-	y = fingerPos[1]
-
-
-	for key, c in centres.items():
-		diag = c[1]
-		if diag < 100:
-			diag *= 2
-		cx =  c[0][0]
-		cy =  c[0][1]
-		#if inside, return
-		if sqrt((cx - x)^2 + (cy - y)^2 ) < diag:
-			return c.key
-
-	return None
+import transcribe_streaming_mic
+import pygame
 
 
 
@@ -248,7 +133,131 @@ for file in tar_file.getmembers():
     tar_file.extract(file, os.getcwd())
 
 '''
-# ## Load a (frozen) Tensorflow model into memory.
+## Load a (frozen) Tensorflow model into memory.
+
+#text to speech 
+mixer.init()
+def text2speech(text):
+    synthesize_text.synthesize_text(text)
+    mixer.music.load("/Users/andywang/htn-pointy-thing/object_detection/output.mp3")
+    mixer.music.play()
+    while mixer.music.get_busy():   
+        pygame.time.Clock().tick(5)
+
+text2speech("Computer lab is fun")
+
+
+DETECT_OBJECT_FLAG = False
+LOOK_FOR_OBJECT_FLAG = False
+
+class Listener(libmyo.DeviceListener):
+  def on_connected(self, event):
+    print("Hello, '{}'! Double tap to exit.".format(event.device_name))
+    event.device.vibrate(libmyo.VibrationType.short)
+    event.device.request_battery_level()
+
+  def on_battery_level(self, event):
+    print("Your battery level is:", event.battery_level)
+
+
+  def on_pose(self, event):
+    if event.pose == libmyo.Pose.wave_in:
+      global leftObject 
+      print("Object on the left: " , end=" ")  
+      for i in leftObject :
+          print(i, end=" ")
+      total_text = ". ".join(str(item) for item in leftObject) 
+      print(total_text)
+      text2speech(total_text)
+      return True
+    elif event.pose == libmyo.Pose.wave_out:
+      global rightObject  
+      print("Object on the right: " , end=" ")   
+      for i in rightObject :
+          print(i, end=" ")
+      total_text = ". ".join(str(item) for item in rightObject) 
+      print(total_text)
+      text2speech(total_text)
+      return True
+    elif event.pose == libmyo.Pose.fingers_spread:
+      # where is ___ (start microphone)
+      LOOK_FOR_OBJECT_FLAG = True
+    elif event.pose == libmyo.Pose.double_tap:
+      # what-is-this equivalent 
+      DETECT_OBJECT_FLAG = True
+    elif event.pose == libmyo.Pose.fist:
+      #closed fist to stop
+      return False
+
+def computePointedObject(objects, fingerPos):
+	'''to be checked outside:
+	if whatisthis and fingerPos:
+	'''
+	centres = {}
+	box_nums = []
+	diags = {}
+	limit = len(objects)
+
+	unique_i = 0
+
+	# obj = {'key/label', 'val'=[[center1, diag1], [center2, diag2], []... ]}
+	# centres = {'key/label', 'val'=[[unique_center1], [unique_center2], []... ]}
+
+	#iterate through keys/labels
+	for obj in objects:
+		key = obj.key
+		centre = obj[key][0]
+		diag = obj[key][1]
+
+		if not centres:
+			centres[key][0] = centre
+			diags[key][0] = diag
+			box_nums[0] = 1
+			unique_i = 0
+			prev_i = 0
+
+		else:
+			for i, c in centres.items():
+				# if centre within 10% of c val in centres == duplicate el
+				# else greater than 10% == new el
+				if abs(centre - c) < (0.1 * c):
+					#get sum of centres, diagonals
+					centres[key][i] += centre
+					diags[key][i] += diag
+					box_nums[i] += 1
+				elif unique_i < limit:
+					unique_i += 1
+					box_nums[unique_i] = 1
+					centres.append(centre)
+					diags.append(diag)
+				else:
+					break
+
+	#compute average centres
+	for key, boxes in centres.items():
+		for i in range(len(boxes)):
+			#tuple
+			centres[key][i] /= box_nums[i]
+			diags[key][i] /= box_nums[i]
+
+
+	#search for closest
+	x = fingerPos[0]
+	y = fingerPos[1]
+
+
+	for key, c in centres.items():
+		diag = c[1]
+		if diag < 100:
+			diag *= 2
+		cx =  c[0][0]
+		cy =  c[0][1]
+		#if inside, return
+		if sqrt((cx - x)^2 + (cy - y)^2 ) < diag:
+			return c.key
+
+	return None
+
 
 # In[ ]:
 
@@ -301,6 +310,7 @@ start = time.time()
 #text2speechpath = "/Users/andywang/htn-pointy-thing/synthesize_text.py"
 #text2speech = text2speechpath  + "--text 'hello'"
 #subprocess.Popen(text2speech, shell=True)
+
 mixer.init()
 # mixer.music.load("/Users/andywang/htn-pointy-thing/output.mp3")
 # mixer.music.play()
@@ -314,6 +324,7 @@ cap = cv2.VideoCapture(1)
 frameWidth = cap.get(3)
 frameHeight = cap.get(4)
 print("Start")
+
 
 # Running the tensorflow session
 with detection_graph.as_default():
@@ -434,7 +445,7 @@ with detection_graph.as_default():
 #      print("Object on the left: " , end=" ")  
 #      for i in leftObject :
 #          print(i, end=" ")
-#      print("Object on the right: " , end=" ")   
+#      print("Object on the right: "  end=" ")   
 #      for i in rightObject :
 #          print(i, end=" ")
 #     for index,value in enumerate(classes[0]) :
@@ -448,15 +459,12 @@ with detection_graph.as_default():
                   #print(scores)
           counter = counter + 1
       else:  
-          print("Done")
           counter = 0  
           save_to_array = False 
 
 
       if DETECT_OBJECT_FLAG:
       	computePointedObject(detected_objects,fingerPos)
-
-
       detected_objects = {}
 
       hub.run(myo_listener.on_event, 50)
