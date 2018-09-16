@@ -35,8 +35,6 @@ import time
 import pandas as pd
 import matplotlib.pyplot as plt
 
-
-
 from distutils.version import StrictVersion
 import numpy as np
 import os
@@ -50,8 +48,6 @@ from collections import defaultdict
 from io import StringIO
 from matplotlib import pyplot as plt
 from PIL import Image
-
-
 
 import myo as libmyo; libmyo.init("/Users/andywang/htn-pointy-thing/sdk/myo.framework/myo")
 
@@ -75,6 +71,77 @@ class Listener(libmyo.DeviceListener):
   
     elif event.pose == libmyo.Pose.double_tap:
       return False
+
+
+def computePointedObject(objects, fingerPos):
+	'''to be checked outside:
+	if whatisthis and fingerPos:
+	'''
+	centres = {}
+	box_nums = []
+	diags = {}
+	limit = len(objects)
+
+	unique_i = 0
+
+	# obj = {'key/label', 'val'=[[center1, diag1], [center2, diag2], []... ]}
+	# centres = {'key/label', 'val'=[[unique_center1], [unique_center2], []... ]}
+
+	#iterate through keys/labels
+	for obj in objects:
+		key = obj.key
+		centre = obj[key][0]
+		diag = obj[key][1]
+
+		if not centres:
+			centres[key][0] = centre
+			diags[key][0] = diag
+			box_nums[0] = 1
+			unique_i = 0
+			prev_i = 0
+
+		else:
+			for i, c in enumerate(centres):
+				# if centre within 10% of c val in centres == duplicate el
+				# else greater than 10% == new el
+				if abs(centre - c) < (0.1 * c):
+					#get sum of centres, diagonals
+					centres[key][i] += centre
+					diags[key][i] += diag
+					box_nums[i] += 1
+				elif unique_i < limit:
+					unique_i += 1
+					box_nums[unique_i] = 1
+					centres.append(centre)
+					diags.append(diag)
+				else:
+					break
+
+	#compute average centres
+	for key, boxes in enumerate(centres):
+		for i in range(len(boxes)):
+			#tuple
+			centres[key][i] /= box_nums[i]
+			diags[key][i] /= box_nums[i]
+
+
+	#search for closest
+	x = fingerPos[0]
+	y = fingerPos[1]
+
+
+	for c in centres:
+		diag = c[1]
+		if diag < 100:
+			diag *= 2
+		cx =  c[0][0]
+		cy =  c[0][1]
+		#if inside, return
+		if sqrt((cx - x)^2 + (cy - y)^2 ) < diag:
+			return c.key
+
+	return None
+
 
 
 # This is needed since the notebook is stored in the object_detection folder.
