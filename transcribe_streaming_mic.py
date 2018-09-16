@@ -139,6 +139,17 @@ def listen_print_loop(responses, time_zero):
         interim_time = time.time()
 
         print(transcript)
+        # listoWords = transcript.split()
+        # for i, word in enumerate(listoWords):
+        #     try:
+        #         if word.lower() == "what" and listoWords[i+1].lower() == "is" and listoWords[i+2].lower() == "this":
+        #             do stuff
+        #         elif word.lower() == "where" and listoWords[i+1].lower() == "is" and listoWords[i+2].lower() == "my":
+        #             lookFor = listoWords[i + 3];
+        #             do stuff
+        #     except IndexError:
+        #         pass
+
         #full_dict = transcript.split()
         #wpm = int(len(full_dict) / (interim_time - time_zero) * 60)
         #print("word count:", wpm)

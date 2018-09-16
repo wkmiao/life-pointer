@@ -49,6 +49,11 @@ from io import StringIO
 from matplotlib import pyplot as plt
 from PIL import Image
 
+import subprocess
+sys.path.insert(0, '/Users/andywang/htn-pointy-thing/synthesize_text')
+from synthesize_text import synthesize_txt
+
+from pygame import mixer 
 import myo as libmyo; libmyo.init("/Users/andywang/htn-pointy-thing/sdk/myo.framework/myo")
 
 
@@ -63,10 +68,16 @@ class Listener(libmyo.DeviceListener):
 
   def on_pose(self, event):
     if event.pose == libmyo.Pose.wave_in:
-      print ("left")
+      global leftObject 
+      print("Object on the left: " , end=" ")  
+      for i in leftObject :
+          print(i, end=" ")
       return True
     elif event.pose == libmyo.Pose.wave_out:
-      print ("right")
+      global rightObject  
+      print("Object on the right: " , end=" ")   
+      for i in rightObject :
+          print(i, end=" ")
       return True
   
     elif event.pose == libmyo.Pose.double_tap:
@@ -260,11 +271,16 @@ Data_Points = pd.DataFrame(data = None, columns = Data_Features , dtype = float)
 start = time.time()
 
 
-
-
+#starting text to speech 
+#text2speechpath = "/Users/andywang/htn-pointy-thing/synthesize_text.py"
+#text2speech = text2speechpath  + "--text 'hello'"
+#subprocess.Popen(text2speech, shell=True)
+mixer.init()
+mixer.music.load("/Users/andywang/htn-pointy-thing/output.mp3")
+mixer.music.play()
 
 # In[ ]:
-
+counter = 0
 #intializing the web camera device
 
 #import cv2
@@ -277,7 +293,6 @@ with detection_graph.as_default():
    hub = libmyo.Hub()
    myo_listener = Listener()
    ret = True
-   x=0
    while (ret):
       #grab the current frame - finger detection 
       #(grabbed, frame) = camera.read() 
@@ -335,7 +350,6 @@ with detection_graph.as_default():
       
       # only proceed if at least one contour was found
       if len(cnts) > 0:
-          # find the largest contour in the mask, then use
           # it to compute the minimum enclosing circle and
           # centroid
           c = max(cnts, key=cv2.contourArea)
@@ -354,28 +368,53 @@ with detection_graph.as_default():
               # update the points queue
               #pts.appendleft(center)
           if cv2.waitKey(25) & 0xFF == ord('q'):
-              x = 1
+              counter = 1
               #print ([category_index.get(value) for index,value in enumerate(classes[0]) if scores[0,index] > 0.5])
               #print([category_index.get(i) for i in classes[0]])
               #print(type(boxes))
               #print(type(classes))  
               #width, height = image_np.size
-          if x < 20 and x > 0: 
-              print("Width:")
-              frameWidth = cap.get(3)
-              print(cap.get(3))
-              print("height:")
-              frameHeight = cap.get(4)
-              print(cap.get(4))
-              print(center)
-              for index,value in enumerate(classes[0]) :
-                  if scores[0,index] > 0.5:
-                      print ([category_index.get(value)['name'],boxes[0,index]])
+      leftObject = []
+      rightObject = [] 
+      #[ymin, xmin, ymax, xmax]  
+      #calculate center of the boxes 
+      
+      for index,value in enumerate(classes[0]) :
+          if scores[0,index] > 0.5:
+              xmid = (boxes[0,index][1]+boxes[0,index][3])/2
+              ymid = (boxes[0,index][0]+boxes[0,index][2])/2
+              if (xmid < 0.5):
+                  leftObject.append(category_index.get(value)['name'])
+              else:
+                  rightObject.append(category_index.get(value)['name'])
+              #print ([category_index.get(value)['name'],boxes[0,index]])
+#      print("Object on the left: " , end=" ")  
+#      for i in leftObject :
+#          print(i, end=" ")
+#      print("Object on the right: " , end=" ")   
+#      for i in rightObject :
+#          print(i, end=" ")
+#     for index,value in enumerate(classes[0]) :
+#              if scores[0,index] > 0.5:
+#                  print ([category_index.get(value)['name'],boxes[0,index]])
+        
+      if counter< 20 and counter >0: 
+          print("Width:")
+          frameWidth = cap.get(3)
+          print(cap.get(3))
+          print("Height:")
+          frameHeight = cap.get(4)
+          print(cap.get(4))
+          print(center)
+          for index,value in enumerate(classes[0]) :
+              if scores[0,index] > 0.5:
+                  print ([category_index.get(value)['name'],boxes[0,index]])
                       #print(scores)
-              x=x+1
-          else:  
-              x = 0   
-      hub.run_once(myo_listener.on_event, 50)
+          counter = counter + 1
+      else:  
+          print("Done")
+          counter = 0   
+      hub.run(myo_listener.on_event, 50)
         
         
       
