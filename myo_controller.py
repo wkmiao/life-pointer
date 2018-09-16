@@ -24,26 +24,26 @@ import struct
 
 scriptTitle = "Myo Generic Controller"
 
-# def pack(fmt, *args):
-#     return struct.pack('<' + fmt, *args)
+def pack(fmt, *args):
+     return struct.pack('<' + fmt, *args)
 
-# def unpack(fmt, *args):
-#     return struct.unpack('<' + fmt, *args)
+def unpack(fmt, *args):
+     return struct.unpack('<' + fmt, *args)
 
-# def text(scr, font, txt, pos, clr=(255,255,255)):
-#     scr.blit(font.render(txt, True, clr), pos)
+def text(scr, font, txt, pos, clr=(255,255,255)):
+     scr.blit(font.render(txt, True, clr), pos)
 
-# def multichr(ords):
-#     if sys.version_info[0] >= 3:
-#         return bytes(ords)
-#     else:
-#         return ''.join(map(chr, ords))
+def multichr(ords):
+     if sys.version_info[0] >= 3:
+         return bytes(ords)
+     else:
+         return ''.join(map(chr, ords))
 
-# def multiord(b):
-#     if sys.version_info[0] >= 3:
-#         return list(b)
-#     else:
-#         return map(ord, b)
+def multiord(b):
+     if sys.version_info[0] >= 3:
+         return list(b)
+     else:
+         return map(ord, b)
 
 
 class Arm(enum.Enum):
@@ -51,12 +51,12 @@ class Arm(enum.Enum):
     RIGHT = 1
     LEFT = 2
 
-class XDirection(enum.Enum):
-    UNKNOWN = 0
-    X_TOWARD_WRIST = 1
-    X_TOWARD_ELBOW = 2
+#class XDirection(enum.Enum):
+#    UNKNOWN = 0
+#    X_TOWARD_WRIST = 1
+#    X_TOWARD_ELBOW = 2
 
-class Pose(enum.Enum):
+class pose(enum.Enum):
     REST = 0
     FIST = 1
     WAVE_IN = 2
@@ -346,8 +346,8 @@ class Myo(MyoRaw):
 
 
 if __name__ == '__main__':
-    import subprocess
-    m = Myo(NNClassifier(), sys.argv[1] if len(sys.argv) >= 2 else None)
+    #import subprocess
+    '''m = Myo(NNClassifier(), sys.argv[1] if len(sys.argv) >= 2 else None)
     m.add_raw_pose_handler(print)
 
     def page(pose):
@@ -359,7 +359,7 @@ if __name__ == '__main__':
     m.add_raw_pose_handler(page)
 
     m.connect()
-
+    '''
     while True:
         m.run()
 
@@ -374,12 +374,12 @@ def getTarget(myo):
     myo.vibrate('short')
 
 def onPoseEdge(pose, edge):
-	if pose == FIST:
-		getTarget(myo)
-	elif pose == WAVE_IN and edge == "on":
-		img_part = "left"
-	elif pose == WAVE_OUT and edge == "on":
-		img_part = "right"
+    if pose == FIST:
+        getTarget(myo)
+    elif pose == 2 and edge == "on":
+        img_part = "left"
+    elif pose == 3 and edge == "on":
+        img_part = "right"
         myo.unlock("hold")
         myo.notifyUserAction()
     	
