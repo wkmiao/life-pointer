@@ -79,8 +79,11 @@ class Listener(libmyo.DeviceListener):
       for i in rightObject :
           print(i, end=" ")
       return True
-  
+    elif event.pose == libmyo.Pose.fingers_spread:
+      # where is ___ (start microphone)
     elif event.pose == libmyo.Pose.double_tap:
+      # what is this (equivalent)
+    elif event.pose == libmyo.Pose.fist:
       return False
 
 
