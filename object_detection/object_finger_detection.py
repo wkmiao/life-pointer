@@ -48,7 +48,11 @@ from io import StringIO
 from matplotlib import pyplot as plt
 from PIL import Image
 
+import subprocess
+sys.path.insert(0, '/Users/andywang/htn-pointy-thing/synthesize_text')
+from synthesize_text import synthesize_txt
 
+from pygame import mixer 
 
 import myo as libmyo; libmyo.init("/Users/andywang/htn-pointy-thing/sdk/myo.framework/myo")
 
@@ -196,8 +200,13 @@ Data_Points = pd.DataFrame(data = None, columns = Data_Features , dtype = float)
 start = time.time()
 
 
-
-
+#starting text to speech 
+#text2speechpath = "/Users/andywang/htn-pointy-thing/synthesize_text.py"
+#text2speech = text2speechpath  + "--text 'hello'"
+#subprocess.Popen(text2speech, shell=True)
+mixer.init()
+mixer.music.load("/Users/andywang/htn-pointy-thing/output.mp3")
+mixer.music.play()
 
 # In[ ]:
 counter = 0
