@@ -63,6 +63,10 @@ sys.path.insert(0, parentdir)
 
 import synthesize_text
 
+
+DETECT_OBJECT_FLAG = False
+LOOK_FOR_OBJECT_FLAG = False
+
 class Listener(libmyo.DeviceListener):
   def on_connected(self, event):
     print("Hello, '{}'! Double tap to exit.".format(event.device_name))
@@ -91,9 +95,12 @@ class Listener(libmyo.DeviceListener):
       return True
     elif event.pose == libmyo.Pose.fingers_spread:
       # where is ___ (start microphone)
+      LOOK_FOR_OBJECT_FLAG = True
     elif event.pose == libmyo.Pose.double_tap:
-      # what is this (equivalent)
+      # what-is-this equivalent 
+      DETECT_OBJECT_FLAG = True
     elif event.pose == libmyo.Pose.fist:
+      #closed fist to stop
       return False
 
 
@@ -131,7 +138,7 @@ def computePointedObject(objects, fingerPos):
 			prev_i = 0
 
 		else:
-			for i, c in enumerate(centres):
+			for i, c in centres.items():
 				# if centre within 10% of c val in centres == duplicate el
 				# else greater than 10% == new el
 				if abs(centre - c) < (0.1 * c):
@@ -148,7 +155,7 @@ def computePointedObject(objects, fingerPos):
 					break
 
 	#compute average centres
-	for key, boxes in enumerate(centres):
+	for key, boxes in centres.items():
 		for i in range(len(boxes)):
 			#tuple
 			centres[key][i] /= box_nums[i]
@@ -160,7 +167,7 @@ def computePointedObject(objects, fingerPos):
 	y = fingerPos[1]
 
 
-	for c in centres:
+	for key, c in centres.items():
 		diag = c[1]
 		if diag < 100:
 			diag *= 2
@@ -295,8 +302,8 @@ start = time.time()
 #text2speech = text2speechpath  + "--text 'hello'"
 #subprocess.Popen(text2speech, shell=True)
 mixer.init()
-mixer.music.load("/Users/andywang/htn-pointy-thing/output.mp3")
-mixer.music.play()
+# mixer.music.load("/Users/andywang/htn-pointy-thing/output.mp3")
+# mixer.music.play()
 
 # In[ ]:
 counter = 0
@@ -304,6 +311,8 @@ counter = 0
 
 #import cv2
 cap = cv2.VideoCapture(1)
+frameWidth = cap.get(3)
+frameHeight = cap.get(4)
 print("Start")
 
 # Running the tensorflow session
@@ -312,6 +321,10 @@ with detection_graph.as_default():
    hub = libmyo.Hub()
    myo_listener = Listener()
    ret = True
+
+   detected_objects = {}
+   fingerPos = 0
+
    while (ret):
       #grab the current frame - finger detection 
       #(grabbed, frame) = camera.read() 
@@ -337,7 +350,6 @@ with detection_graph.as_default():
       cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,
 		 cv2.CHAIN_APPROX_SIMPLE)[-2]
       center = None
-
       
       # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
       image_np_expanded = np.expand_dims(image_np, axis=0)
@@ -375,8 +387,9 @@ with detection_graph.as_default():
           ((x, y), radius) = cv2.minEnclosingCircle(c)
           M = cv2.moments(c)
           center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+          fingerPos = (center)
           # only proceed if the radius meets a minimum size
-          if (radius < 300) & (radius > 10 ) : 
+          if radius in range(10, 300): 
               # draw the circle and centroid on the frame,
               # then update the list of tracked points
               cv2.circle(image_np , (int(x), int(y)), int(radius),
@@ -386,8 +399,9 @@ with detection_graph.as_default():
               Data_Points.loc[Data_Points.size/3] = [x , y, current_time]
               # update the points queue
               #pts.appendleft(center)
-          if cv2.waitKey(25) & 0xFF == ord('q'):
+          if DETECT_OBJECT_FLAG:
               counter = 1
+              save_to_array = True
               #print ([category_index.get(value) for index,value in enumerate(classes[0]) if scores[0,index] > 0.5])
               #print([category_index.get(i) for i in classes[0]])
               #print(type(boxes))
@@ -395,18 +409,28 @@ with detection_graph.as_default():
               #width, height = image_np.size
       leftObject = []
       rightObject = [] 
-      #[ymin, xmin, ymax, xmax]  
+      # format: [ymin, xmin, ymax, xmax]
       #calculate center of the boxes 
-      
+
       for index,value in enumerate(classes[0]) :
           if scores[0,index] > 0.5:
               xmid = (boxes[0,index][1]+boxes[0,index][3])/2
               ymid = (boxes[0,index][0]+boxes[0,index][2])/2
+
               if (xmid < 0.5):
                   leftObject.append(category_index.get(value)['name'])
               else:
                   rightObject.append(category_index.get(value)['name'])
+
+              if save_to_array:
+              	diag = sqrt((boxes[0,index][2] - boxes[0,index][0])^2  + 
+              		(boxes[0,index][3] - boxes[0,index][1]) ^2 ) / 2
+
+              	if not detected_objects[(category_index.get(value)['name'])]:
+              		detected_objects[(category_index.get(value)['name'])] = []
+              	detected_objects[(category_index.get(value)['name'])].append([(xmid * frameWidth, ymid * frameHeight), diag])
               #print ([category_index.get(value)['name'],boxes[0,index]])
+
 #      print("Object on the left: " , end=" ")  
 #      for i in leftObject :
 #          print(i, end=" ")
@@ -417,26 +441,27 @@ with detection_graph.as_default():
 #              if scores[0,index] > 0.5:
 #                  print ([category_index.get(value)['name'],boxes[0,index]])
         
-      if counter< 20 and counter >0: 
-          print("Width:")
-          frameWidth = cap.get(3)
-          print(cap.get(3))
-          print("Height:")
-          frameHeight = cap.get(4)
-          print(cap.get(4))
-          print(center)
+      if counter in range (0, 20):
           for index,value in enumerate(classes[0]) :
               if scores[0,index] > 0.5:
                   print ([category_index.get(value)['name'],boxes[0,index]])
-                      #print(scores)
+                  #print(scores)
           counter = counter + 1
       else:  
           print("Done")
-          counter = 0   
+          counter = 0  
+          save_to_array = False 
+
+
+      if DETECT_OBJECT_FLAG:
+      	computePointedObject(detected_objects,fingerPos)
+
+
+      detected_objects = {}
+
       hub.run(myo_listener.on_event, 50)
         
         
-      
       cv2.imshow('image',image_np)
       #cv2.imshow('image',cv2.resize(image_np,(1280,960)))
       #if cv2.waitKey(25) & 0xFF == ord('q'):
