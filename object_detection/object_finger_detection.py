@@ -49,13 +49,19 @@ from io import StringIO
 from matplotlib import pyplot as plt
 from PIL import Image
 
-import subprocess
-sys.path.insert(0, '/Users/andywang/htn-pointy-thing/synthesize_text')
-from synthesize_text import synthesize_txt
+#sys.path.insert(0, '/Users/andywang/htn-pointy-thing/synthesize_text')
+#import synthesize_text 
 
 from pygame import mixer 
 import myo as libmyo; libmyo.init("/Users/andywang/htn-pointy-thing/sdk/myo.framework/myo")
+import os
+import inspect
 
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.insert(0, parentdir)
+
+import synthesize_text
 
 class Listener(libmyo.DeviceListener):
   def on_connected(self, event):
@@ -66,24 +72,34 @@ class Listener(libmyo.DeviceListener):
   def on_battery_level(self, event):
     print("Your battery level is:", event.battery_level)
 
+
   def on_pose(self, event):
     if event.pose == libmyo.Pose.wave_in:
       global leftObject 
       print("Object on the left: " , end=" ")  
       for i in leftObject :
           print(i, end=" ")
+      total_text = ". ".join(str(item) for item in leftObject) 
       return True
     elif event.pose == libmyo.Pose.wave_out:
       global rightObject  
       print("Object on the right: " , end=" ")   
       for i in rightObject :
           print(i, end=" ")
+      total_text = ". ".join(str(item) for item in rightObject) 
+      text2speech(total_text)
       return True
   
     elif event.pose == libmyo.Pose.double_tap:
       return False
 
 
+def text2speech(text):
+    print(text)
+    synthesize_text.synthesize_text(text)
+    mixer.music.load("/Users/andywang/htn-pointy-thing/output.mp3")
+    mixer.music.play()
+    
 def computePointedObject(objects, fingerPos):
 	'''to be checked outside:
 	if whatisthis and fingerPos:
