@@ -42,7 +42,7 @@ import sys
 import tarfile
 import tensorflow as tf
 import zipfile
-
+import math 
 from collections import defaultdict
 from io import StringIO
 from matplotlib import pyplot as plt
@@ -144,7 +144,7 @@ def text2speech(text):
     while mixer.music.get_busy():   
         pygame.time.Clock().tick(5)
 
-text2speech("Computer lab is fun")
+text2speech("Hack the North is legit")
 
 
 DETECT_OBJECT_FLAG = False
@@ -181,9 +181,13 @@ class Listener(libmyo.DeviceListener):
       return True
     elif event.pose == libmyo.Pose.fingers_spread:
       # where is ___ (start microphone)
+      print("finger spread")
+      global LOOK_FOR_OBJECT_FLAG 
       LOOK_FOR_OBJECT_FLAG = True
     elif event.pose == libmyo.Pose.double_tap:
       # what-is-this equivalent 
+      print("double tap")
+      global DETECT_OBJECT_FLAG
       DETECT_OBJECT_FLAG = True
     elif event.pose == libmyo.Pose.fist:
       #closed fist to stop
@@ -204,8 +208,7 @@ def computePointedObject(objects, fingerPos):
 	# centres = {'key/label', 'val'=[[unique_center1], [unique_center2], []... ]}
 
 	#iterate through keys/labels
-	for obj in objects:
-		key = obj.key
+	for key, obj in objects.items():
 		centre = obj[key][0]
 		diag = obj[key][1]
 
@@ -253,7 +256,7 @@ def computePointedObject(objects, fingerPos):
 		cx =  c[0][0]
 		cy =  c[0][1]
 		#if inside, return
-		if sqrt((cx - x)^2 + (cy - y)^2 ) < diag:
+		if math.sqrt((cx - x)^2 + (cy - y)^2 ) < diag:
 			return c.key
 
 	return None
@@ -324,8 +327,13 @@ cap = cv2.VideoCapture(1)
 frameWidth = cap.get(3)
 frameHeight = cap.get(4)
 print("Start")
+print("frameWidth:" )
+print(frameWidth)
+print("frameHeight:")
+print(frameHeight)
 
-
+save_to_array = False
+detected_objects = {}
 # Running the tensorflow session
 with detection_graph.as_default():
   with tf.Session(graph=detection_graph) as sess:
@@ -347,7 +355,9 @@ with detection_graph.as_default():
 
       # resize the frame, blur it, and convert it to the HSV
       # color space
-      frame = imutils.resize(image_np, width=1800)
+      
+      #not sure we need it
+      #image_np= imutils.resize(image_np, width=1800)
       # blurred = cv2.GaussianBlur(frame, (11, 11), 0)
       hsv = cv2.cvtColor(image_np, cv2.COLOR_BGR2HSV)
       # construct a mask for the color "green", then perform
@@ -388,7 +398,7 @@ with detection_graph.as_default():
 #      plt.figure(figsize=IMAGE_SIZE)
 #      plt.imshow(image_np)
 #####
-      
+     
       
       # only proceed if at least one contour was found
       if len(cnts) > 0:
@@ -398,9 +408,9 @@ with detection_graph.as_default():
           ((x, y), radius) = cv2.minEnclosingCircle(c)
           M = cv2.moments(c)
           center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-          fingerPos = (center)
+          fingerPos = center
           # only proceed if the radius meets a minimum size
-          if radius in range(10, 300): 
+          if (radius < 300) & (radius > 10 ): 
               # draw the circle and centroid on the frame,
               # then update the list of tracked points
               cv2.circle(image_np , (int(x), int(y)), int(radius),
@@ -410,9 +420,10 @@ with detection_graph.as_default():
               Data_Points.loc[Data_Points.size/3] = [x , y, current_time]
               # update the points queue
               #pts.appendleft(center)
-          if DETECT_OBJECT_FLAG:
+          if DETECT_OBJECT_FLAG and counter == 0:
               counter = 1
               save_to_array = True
+              detected_objects = {}
               #print ([category_index.get(value) for index,value in enumerate(classes[0]) if scores[0,index] > 0.5])
               #print([category_index.get(i) for i in classes[0]])
               #print(type(boxes))
@@ -424,23 +435,29 @@ with detection_graph.as_default():
       #calculate center of the boxes 
 
       for index,value in enumerate(classes[0]) :
-          if scores[0,index] > 0.5:
+          if scores[0,index] > 0.5:     
               xmid = (boxes[0,index][1]+boxes[0,index][3])/2
               ymid = (boxes[0,index][0]+boxes[0,index][2])/2
-
+              
               if (xmid < 0.5):
                   leftObject.append(category_index.get(value)['name'])
               else:
                   rightObject.append(category_index.get(value)['name'])
-
+              ymin = boxes[0,index][0]* frameHeight
+              xmin = boxes[0,index][1]* frameWidth
+              ymax = boxes[0,index][2]* frameHeight
+              xmax = boxes[0,index][3]* frameWidth
+              xmid = (xmin + xmax)/2
+              ymid = (ymin + ymax)/2
               if save_to_array:
-              	diag = sqrt((boxes[0,index][2] - boxes[0,index][0])^2  + 
-              		(boxes[0,index][3] - boxes[0,index][1]) ^2 ) / 2
+              	diag = math.sqrt(pow((ymax  - ymin ),2)  + 
+              		pow((xmax - xmin),2) ) / 2
 
-              	if not detected_objects[(category_index.get(value)['name'])]:
+              	if (category_index.get(value)['name']) not in detected_objects:
               		detected_objects[(category_index.get(value)['name'])] = []
-              	detected_objects[(category_index.get(value)['name'])].append([(xmid * frameWidth, ymid * frameHeight), diag])
-              #print ([category_index.get(value)['name'],boxes[0,index]])
+              	detected_objects[(category_index.get(value)['name'])].append([(xmid , ymid ), diag])
+                  
+                #print ([category_index.get(value)['name'],boxes[0,index]])
 
 #      print("Object on the left: " , end=" ")  
 #      for i in leftObject :
@@ -452,28 +469,32 @@ with detection_graph.as_default():
 #              if scores[0,index] > 0.5:
 #                  print ([category_index.get(value)['name'],boxes[0,index]])
         
-      if counter in range (0, 20):
-          for index,value in enumerate(classes[0]) :
-              if scores[0,index] > 0.5:
-                  print ([category_index.get(value)['name'],boxes[0,index]])
-                  #print(scores)
+      if counter > 0 and counter < 11:
           counter = counter + 1
+          DETECT_OBJECT_FLAG = False 
       else:  
           counter = 0  
-          save_to_array = False 
-
-
-      if DETECT_OBJECT_FLAG:
-      	computePointedObject(detected_objects,fingerPos)
-      detected_objects = {}
-
-      hub.run(myo_listener.on_event, 50)
+          DETECT_OBJECT_FLAG = False 
+          save_to_array = False
+          
+      if counter == 10 :
+          print("detect object" )
+          print(detected_objects)
+          print(fingerPos)
+          computePointedObject(detected_objects,fingerPos)
+          detected_objects = {}
+          
+      
+      if counter ==0:   
+          hub.run(myo_listener.on_event, 50)
         
         
       cv2.imshow('image',image_np)
+      #cv2.imshow('image',mask)
+
       #cv2.imshow('image',cv2.resize(image_np,(1280,960)))
-      #if cv2.waitKey(25) & 0xFF == ord('q'):
-          #cv2.destroyAllWindows()
-          #cap.release()
-          #break
+      if cv2.waitKey(25) & 0xFF == ord('q'):
+          cv2.destroyAllWindows()
+          cap.release()
+          break
 
