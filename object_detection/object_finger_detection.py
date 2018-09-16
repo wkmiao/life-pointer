@@ -61,7 +61,7 @@ parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 
 import synthesize_text
-import transcribe_streaming_mic
+import stt
 import pygame
 
 
@@ -194,75 +194,88 @@ class Listener(libmyo.DeviceListener):
       return False
 
 def computePointedObject(objects, fingerPos):
-	'''to be checked outside:
-	if whatisthis and fingerPos:
-	'''
-	centres = {}
-	box_nums = []
-	diags = {}
-	limit = len(objects)
+    '''to be checked outside:
+    if whatisthis and fingerPos:
+    '''
+    centres = {}
+    box_nums = []
+    diags = {}
+    limit = len(objects)
 
-	unique_i = 0
+    unique_i = 0
 
-	# obj = {'key/label', 'val'=[[center1, diag1], [center2, diag2], []... ]}
-	# centres = {'key/label', 'val'=[[unique_center1], [unique_center2], []... ]}
+    # obj = {'key/label', 'val'=[[center1, diag1], [center2, diag2], []... ]}
+    # centres = {'key/label', 'val'=[[unique_center1], [unique_center2], []... ]}
 
-	#iterate through keys/labels
-	for key, obj in objects.items():
-		centre = obj[key][0]
-		diag = obj[key][1]
+    #iterate through keys/labels
+    
+    print (objects)
+    
+    for key, objs in objects.items():
+        for o in objs:
+            centre = o[0]
+            diag = o[1]
+        
+            if centres == None:
+                centres[key] = []
+                centres[key].append(centre)
+                diags[key] = []
+                diags[key].append(diag)
+                box_nums = 1
+                unique_i = 0
+                prev_i = 0
+                
+                
+            else:
+                    for i, c in centres.items():
+                        # if centre within 10% of c val in centres == duplicate el
+                        # else greater than 10% == new el
+                        if abs(centre - c) < (0.1 * c):
+                            #get sum of centres, diagonals
+                            centres[key][i] += centre
+                            diags[key][i] += diag
+                            box_nums[i] += 1
+                        elif unique_i < limit:
+                            unique_i += 1
+                            box_nums[unique_i] = 1
+                            centres.append(centre)
+                            diags.append(diag)
+                        else:
+                            break
 
-		if not centres:
-			centres[key][0] = centre
-			diags[key][0] = diag
-			box_nums[0] = 1
-			unique_i = 0
-			prev_i = 0
-
-		else:
-			for i, c in centres.items():
-				# if centre within 10% of c val in centres == duplicate el
-				# else greater than 10% == new el
-				if abs(centre - c) < (0.1 * c):
-					#get sum of centres, diagonals
-					centres[key][i] += centre
-					diags[key][i] += diag
-					box_nums[i] += 1
-				elif unique_i < limit:
-					unique_i += 1
-					box_nums[unique_i] = 1
-					centres.append(centre)
-					diags.append(diag)
-				else:
-					break
-
-	#compute average centres
-	for key, boxes in centres.items():
-		for i in range(len(boxes)):
-			#tuple
-			centres[key][i] /= box_nums[i]
-			diags[key][i] /= box_nums[i]
-
-
-	#search for closest
-	x = fingerPos[0]
-	y = fingerPos[1]
-
-
-	for key, c in centres.items():
-		diag = c[1]
-		if diag < 100:
-			diag *= 2
-		cx =  c[0][0]
-		cy =  c[0][1]
-		#if inside, return
-		if math.sqrt((cx - x)^2 + (cy - y)^2 ) < diag:
-			return c.key
-
-	return None
+    #compute average centres
+    for key, boxes in centres.items():
+        for i in range(len(boxes)):
+            #tuple
+            centres[key][i] /= box_nums[i]
+            diags[key][i] /= box_nums[i]
 
 
+    #search for closest
+    x = fingerPos[0]
+    y = fingerPos[1]
+
+
+    for key, c in centres.items():
+        diag = c[1]
+        if diag < 100:
+            diag *= 2
+        cx =  c[0][0]
+        cy =  c[0][1]
+        #if inside, return
+        if math.sqrt((cx - x)^2 + (cy - y)^2 ) < diag:
+            return c.key
+
+    return None
+
+
+
+
+#math.hypot(p2[0] - p1[0], p2[1] - p1[1]) # Linear distance 
 # In[ ]:
+
+
+
 
 
 detection_graph = tf.Graph()
@@ -334,6 +347,7 @@ print(frameHeight)
 
 save_to_array = False
 detected_objects = {}
+saved_fingerPos = (0,0)
 # Running the tensorflow session
 with detection_graph.as_default():
   with tf.Session(graph=detection_graph) as sess:
@@ -369,7 +383,7 @@ with detection_graph.as_default():
       # find contours in the mask and initialize the current
       # (x, y) center of the ball
       cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,
-		 cv2.CHAIN_APPROX_SIMPLE)[-2]
+         cv2.CHAIN_APPROX_SIMPLE)[-2]
       center = None
       
       # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
@@ -414,7 +428,7 @@ with detection_graph.as_default():
               # draw the circle and centroid on the frame,
               # then update the list of tracked points
               cv2.circle(image_np , (int(x), int(y)), int(radius),
-				(0, 255, 255), 2)
+                (0, 255, 255), 2)
               cv2.circle(image_np , center, 5, (0, 0, 255), -1)
               #Save The Data Points
               Data_Points.loc[Data_Points.size/3] = [x , y, current_time]
@@ -424,6 +438,7 @@ with detection_graph.as_default():
               counter = 1
               save_to_array = True
               detected_objects = {}
+              saved_fingerPos =center
               #print ([category_index.get(value) for index,value in enumerate(classes[0]) if scores[0,index] > 0.5])
               #print([category_index.get(i) for i in classes[0]])
               #print(type(boxes))
@@ -450,12 +465,12 @@ with detection_graph.as_default():
               xmid = (xmin + xmax)/2
               ymid = (ymin + ymax)/2
               if save_to_array:
-              	diag = math.sqrt(pow((ymax  - ymin ),2)  + 
-              		pow((xmax - xmin),2) ) / 2
+                  diag = math.sqrt(pow((ymax  - ymin ),2)  + 
+                      pow((xmax - xmin),2) ) / 2
 
-              	if (category_index.get(value)['name']) not in detected_objects:
-              		detected_objects[(category_index.get(value)['name'])] = []
-              	detected_objects[(category_index.get(value)['name'])].append([(xmid , ymid ), diag])
+                  if (category_index.get(value)['name']) not in detected_objects:
+                      detected_objects[(category_index.get(value)['name'])] = []
+                  detected_objects[(category_index.get(value)['name'])].append([(xmid , ymid ), diag])
                   
                 #print ([category_index.get(value)['name'],boxes[0,index]])
 
@@ -481,8 +496,9 @@ with detection_graph.as_default():
           print("detect object" )
           print(detected_objects)
           print(fingerPos)
-          computePointedObject(detected_objects,fingerPos)
+          computePointedObject(detected_objects, saved_fingerPos)
           detected_objects = {}
+          saved_fingerPos= (0,0)
           
       
       if counter ==0:   
