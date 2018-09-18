@@ -137,14 +137,32 @@ for file in tar_file.getmembers():
 
 #text to speech 
 mixer.init()
+
+def text2speech2(text):
+    obj = {}
+    text = ""
+    for i in text: 
+        if i in obj.keys():
+            obj[i]+= 0
+        else :
+            obj[i] = 1
+    for key, value in obj.items():
+        text  = str(value) + " " + key + ","
+        
+    mixer.music.load("/Users/andywang/htn-pointy-thing/object_detection/output.mp3")
+    mixer.music.play()
+    while mixer.music.get_busy():   
+        pygame.time.Clock().tick(5)   
+        
 def text2speech(text):
+    
     synthesize_text.synthesize_text(text)
     mixer.music.load("/Users/andywang/htn-pointy-thing/object_detection/output.mp3")
     mixer.music.play()
     while mixer.music.get_busy():   
         pygame.time.Clock().tick(5)
 
-text2speech("Hack the North is legit")
+text2speech("Hi, I can help you detect what's around you. Hack the North is legit. ")
 
 
 DETECT_OBJECT_FLAG = False
@@ -201,16 +219,14 @@ def computePointedObject(objects, fingerPos):
     box_nums = []
     diags = {}
     limit = len(objects)
-
+    
     unique_i = 0
-
+    
     # obj = {'key/label', 'val'=[[center1, diag1], [center2, diag2], []... ]}
     # centres = {'key/label', 'val'=[[unique_center1], [unique_center2], []... ]}
-
+    
     #iterate through keys/labels
-    
-    print (objects)
-    
+        
     for key, objs in objects.items():
         for o in objs:
             centre = o[0]
@@ -232,8 +248,8 @@ def computePointedObject(objects, fingerPos):
                         # else greater than 10% == new el
                         if abs(centre - c) < (0.1 * c):
                             #get sum of centres, diagonals
-                            centres[key][i] += centre
-                            diags[key][i] += diag
+#                            centres[key][i] += centre
+#                            diags[key][i] += diag
                             box_nums[i] += 1
                         elif unique_i < limit:
                             unique_i += 1
@@ -243,31 +259,27 @@ def computePointedObject(objects, fingerPos):
                         else:
                             break
 
-    #compute average centres
+#    compute average centres
     for key, boxes in centres.items():
         for i in range(len(boxes)):
             #tuple
             centres[key][i] /= box_nums[i]
             diags[key][i] /= box_nums[i]
 
-
     #search for closest
     x = fingerPos[0]
     y = fingerPos[1]
+    print (x, y)
 
-
-    for key, c in centres.items():
-        diag = c[1]
-        if diag < 100:
-            diag *= 2
-        cx =  c[0][0]
-        cy =  c[0][1]
+    for key, c in objects.items():
+#        diag = c[1]
+#        cx =  c[0][0]
+#        cy =  c[0][1]
         #if inside, return
-        if math.sqrt((cx - x)^2 + (cy - y)^2 ) < diag:
-            return c.key
-
+#        if math.sqrt((cx - x)^2 + (cy - y)^2 ) < diag * 1.5:
+        return key
+        
     return None
-
 
 
 
@@ -336,9 +348,14 @@ counter = 0
 #intializing the web camera device
 
 #import cv2
-cap = cv2.VideoCapture(1)
-frameWidth = cap.get(3)
-frameHeight = cap.get(4)
+cap = cv2.VideoCapture(0)
+
+frameWidth = 640
+frameHeight = 480
+
+cap.set(3, frameWidth)
+cap.set(4, frameHeight)
+
 print("Start")
 print("frameWidth:" )
 print(frameWidth)
@@ -496,7 +513,11 @@ with detection_graph.as_default():
           print("detect object" )
           print(detected_objects)
           print(fingerPos)
-          computePointedObject(detected_objects, saved_fingerPos)
+          result = computePointedObject(detected_objects, saved_fingerPos)
+          if result:
+              text2speech(str(result))
+          else:
+              text2speech("Sorry, I couldn't detect anything.")
           detected_objects = {}
           saved_fingerPos= (0,0)
           
